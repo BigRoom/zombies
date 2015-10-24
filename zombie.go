@@ -17,10 +17,10 @@ type Zombie struct {
 	server   string
 }
 
-// New either creates or retrieves a zombie. Zombies will be created if
+// NewZombie either creates or retrieves a zombie. Zombies will be created if
 // they do not already exist for that user on a server. Zombies will be
 // retrieved if a zombie for the user on a server already exists
-func New(server, nick string, c *websocket.Conn) (*Zombie, error) {
+func NewZombie(server, nick string, c *websocket.Conn) (*Zombie, error) {
 	zombie := ircx.Classic(server, nick)
 
 	if err := zombie.Connect(); err != nil {
