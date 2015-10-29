@@ -61,7 +61,10 @@ func main() {
 	k.HandleFunc("add", addZombie).
 		DisableAuthentication()
 
-	k.HandleFunc("message", messageZombie).
+	k.HandleFunc("send", sendZombie).
+		DisableAuthentication()
+
+	k.HandleFunc("join", joinZombie).
 		DisableAuthentication()
 
 	go k.Run()
@@ -69,13 +72,6 @@ func main() {
 	<-k.ServerReadyNotify()
 
 	fmt.Println("Serving on port", k.Port, "provided", k.Config.Port)
-	/*
-		resp, err := store.Set(context.Background(), fmt.Sprintf("/pools/%v", id), fmt.Sprintf("%v", k.Port()), nil)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		log.Printf("Setting is done. Here is the metadata %v", resp)*/
 
 	<-k.ServerCloseNotify()
 }
@@ -83,15 +79,18 @@ func main() {
 // addZombie adds a new zombie to the runnning pool. It takes a zombies.Add struct and returns the port
 func addZombie(r *kite.Request) (interface{}, error) {
 	// Write to etcd
-	// zid := int64(r.Args.One().MustFloat64())
 	add := zombies.Add{}
 	r.Args.One().MustUnmarshal(&add)
 
-	fmt.Println(add)
+	z, err := pool.New(add.ID, add.Server, add.Nick)
+	if err != nil {
+		return z, err
+	}
 
+	// tell etcd that the zombie is in this pool
 	resp, err := store.Set(context.Background(), fmt.Sprintf("/zombies/%v", add.ID), fmt.Sprintf("%v", *port), nil)
 	if err != nil {
-		log.Fatal(err)
+		return z, err
 	}
 
 	log.Printf("Setting is done. Here is the metadata %v", resp)
@@ -99,9 +98,32 @@ func addZombie(r *kite.Request) (interface{}, error) {
 	return 3001, nil
 }
 
-func messageZombie(r *kite.Request) (interface{}, error) {
-	// Get zombie
-	// Send message
+func joinZombie(r *kite.Request) (interface{}, error) {
+	join := zombies.Join{}
+	r.Args.One().MustUnmarshal(&join)
+
+	z, err := pool.Revive(join.ID)
+	if err != nil {
+		return z, err
+	}
+
+	z.Join(join.Channel)
+
+	return 3001, nil
+}
+
+func sendZombie(r *kite.Request) (interface{}, error) {
+	send := zombies.Send{}
+	r.Args.One().MustUnmarshal(&send)
+
+	z, err := pool.Revive(send.ID)
+	if err != nil {
+		return z, err
+	}
+
+	log.Println(z)
+
+	z.Messages <- send
 
 	return nil, nil
 }

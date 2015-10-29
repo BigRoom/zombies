@@ -3,15 +3,13 @@ package zombies
 import (
 	"log"
 
-	"github.com/gorilla/websocket"
 	"github.com/nickvanw/ircx"
 	"github.com/sorcix/irc"
 )
 
 // Zombie is a struct which represents a Big Room user inside of an IRC server.
 type Zombie struct {
-	WSConn   *websocket.Conn
-	Messages chan string
+	Messages chan Send
 	irc      *ircx.Bot
 	nick     string
 	server   string
@@ -20,7 +18,7 @@ type Zombie struct {
 // NewZombie either creates or retrieves a zombie. Zombies will be created if
 // they do not already exist for that user on a server. Zombies will be
 // retrieved if a zombie for the user on a server already exists
-func NewZombie(server, nick string, c *websocket.Conn) (*Zombie, error) {
+func NewZombie(server, nick string) (*Zombie, error) {
 	zombie := ircx.Classic(server, nick)
 
 	if err := zombie.Connect(); err != nil {
@@ -28,8 +26,7 @@ func NewZombie(server, nick string, c *websocket.Conn) (*Zombie, error) {
 	}
 
 	user := &Zombie{
-		WSConn:   c,
-		Messages: make(chan string),
+		Messages: make(chan Send),
 		irc:      zombie,
 		server:   server,
 		nick:     nick,
@@ -53,18 +50,29 @@ func (z *Zombie) SetNick(name string) {
 	})
 }
 
+func (z *Zombie) Join(channel ...string) {
+	z.irc.Sender.Send(&irc.Message{
+		Command: irc.JOIN,
+		Params:  channel,
+	})
+}
+
 func (z *Zombie) messageHandler(s ircx.Sender, m *irc.Message) {
 	go func() {
 		for {
 			log.Println("Waiting for message")
 			msg := <-z.Messages
 
-			log.Printf("Got message '%v'. Sending to IRC...", msg)
-			s.Send(&irc.Message{
+			log.Printf("Got message '%v'. Sending to IRC on channel '%v'...", msg.Message, msg.Channel)
+			err := s.Send(&irc.Message{
 				Command:  irc.PRIVMSG,
 				Params:   []string{"#roomtest"},
-				Trailing: msg,
+				Trailing: msg.Message,
 			})
+
+			if err != nil {
+				log.Println("Couldn't send message:", err)
+			}
 
 			log.Println("Message sent")
 		}
@@ -73,10 +81,7 @@ func (z *Zombie) messageHandler(s ircx.Sender, m *irc.Message) {
 
 func (z *Zombie) registerHandler(s ircx.Sender, m *irc.Message) {
 	log.Println("Registering")
-	s.Send(&irc.Message{
-		Command: irc.JOIN,
-		Params:  []string{"#roomtest"},
-	})
+	z.Join("#roomtest")
 }
 
 func (z *Zombie) pingHandler(s ircx.Sender, m *irc.Message) {
