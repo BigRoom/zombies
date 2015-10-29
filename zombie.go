@@ -52,7 +52,19 @@ func (z *Zombie) SetNick(name string) {
 	})
 }
 
+// Join makes the zombie join a bunch of channels. Channels are parsed in the form: x.x.x.x:6667/#channel
 func (z *Zombie) Join(channels ...string) {
+	for i := range channels {
+		channel, err := ParseChannelKey(channels[i])
+		if err != nil {
+			log.Println("Failed getting key:", err)
+		}
+
+		channels[i] = channel
+	}
+
+	fmt.Println("Translated channels:", channels)
+
 	z.irc.Sender.Send(&irc.Message{
 		Command: irc.JOIN,
 		Params:  channels,
@@ -69,25 +81,13 @@ func (z *Zombie) messageHandler(s ircx.Sender, m *irc.Message) {
 
 			log.Printf("Got message '%v'. Sending to IRC on channel '%v'...", msg.Message, msg.Channel)
 
-			//var host string
-			//var p int
-			var channel string
-
-			var (
-				h1 int
-				h2 int
-				h3 int
-				h4 int
-			)
-
-			_, err := fmt.Sscanf(msg.Channel, "%d.%d.%d.%d:6667/%v", &h1, &h2, &h3, &h4, &channel)
+			channel, err := ParseChannelKey(msg.Channel)
 			if err != nil {
-				log.Println("Couldnt separate channelid: ", err)
-				continue
+				log.Println("Couldnt get channel:", err)
+				return
 			}
 
-			log.Println(h1, h2, h3, h4)
-			log.Println(channel)
+			log.Printf("Got channel (%v)", channel)
 
 			err = s.Send(&irc.Message{
 				Command:  irc.PRIVMSG,
@@ -106,7 +106,6 @@ func (z *Zombie) messageHandler(s ircx.Sender, m *irc.Message) {
 
 func (z *Zombie) registerHandler(s ircx.Sender, m *irc.Message) {
 	log.Println("Registering")
-	z.Join("#roomtest")
 }
 
 func (z *Zombie) pingHandler(s ircx.Sender, m *irc.Message) {
@@ -115,4 +114,23 @@ func (z *Zombie) pingHandler(s ircx.Sender, m *irc.Message) {
 		Params:   m.Params,
 		Trailing: m.Trailing,
 	})
+}
+
+func ParseChannelKey(s string) (string, error) {
+	var channel string
+
+	var (
+		h1 int
+		h2 int
+		h3 int
+		h4 int
+	)
+
+	_, err := fmt.Sscanf(s, "%d.%d.%d.%d:6667/%v", &h1, &h2, &h3, &h4, &channel)
+	if err != nil {
+		log.Println("failing!")
+		return channel, err
+	}
+
+	return channel, nil
 }
