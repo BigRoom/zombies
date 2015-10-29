@@ -4,6 +4,7 @@ MAINTAINER Harrison Shoebridge <harrison@theshoebridges.com>
 
 RUN go get github.com/coreos/etcd
 RUN go get github.com/coreos/etcd/client
+RUN go get github.com/coreos/etcd/error
 RUN go get github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context
 
 RUN go get github.com/koding/kite

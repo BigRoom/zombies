@@ -11,6 +11,7 @@ import (
 	"github.com/bigroom/zombies"
 	"github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context"
 	"github.com/coreos/etcd/client"
+	// cerror "github.com/coreos/etcd/error"
 	"github.com/koding/kite"
 	"github.com/paked/configure"
 )
@@ -20,10 +21,10 @@ var (
 	eClient client.Client
 	store   client.KeysAPI
 
-	id int64
+	uid int64
 
 	conf = configure.New()
-	port = conf.Int("port", 5555, "THe port you want to listen on")
+	port = conf.Int("port", 3001, "THe port you want to listen on")
 )
 
 func main() {
@@ -33,7 +34,7 @@ func main() {
 	conf.Parse()
 
 	rand.Seed(time.Now().UnixNano())
-	id = rand.Int63()
+	uid = rand.Int63()
 
 	var err error
 
@@ -67,6 +68,9 @@ func main() {
 	k.HandleFunc("join", joinZombie).
 		DisableAuthentication()
 
+	k.HandleFunc("exists", existsZombie).
+		DisableAuthentication()
+
 	go k.Run()
 
 	<-k.ServerReadyNotify()
@@ -88,14 +92,47 @@ func addZombie(r *kite.Request) (interface{}, error) {
 	}
 
 	// tell etcd that the zombie is in this pool
-	resp, err := store.Set(context.Background(), fmt.Sprintf("/zombies/%v", add.ID), fmt.Sprintf("%v", *port), nil)
+	resp, err := store.Set(context.Background(), fmt.Sprintf("/zombies/%v", add.ID), makeKey(), nil)
 	if err != nil {
 		return z, err
 	}
 
 	log.Printf("Setting is done. Here is the metadata %v", resp)
 
-	return 3001, nil
+	return *port, nil
+}
+
+func existsZombie(r *kite.Request) (interface{}, error) {
+	id := int64(r.Args.One().MustFloat64())
+	log.Printf("ID is here %v", id)
+
+	key := fmt.Sprintf("/zombies/%v", id)
+	resp, err := store.Get(context.Background(), key, nil)
+	if err != nil {
+		log.Fatal("error: ", err)
+
+		return false, nil //zombies.ErrZombieDoesntExist
+	}
+
+	log.Println("Got node value")
+
+	log.Printf("'%v' vs '%v'", id, resp.Node.Value)
+
+	if makeKey() == resp.Node.Value {
+		log.Println("Zombie does exist!")
+		return true, nil
+	} else if p, u := translateKey(resp.Node.Value); p == *port && u != uid {
+		_, err := store.Delete(context.Background(), key, nil)
+		if err != nil {
+			return false, err
+		}
+
+		fmt.Println("Deleted old key")
+	}
+
+	log.Println("Zombie does not exist...")
+
+	return false, nil
 }
 
 func joinZombie(r *kite.Request) (interface{}, error) {
@@ -126,4 +163,17 @@ func sendZombie(r *kite.Request) (interface{}, error) {
 	z.Messages <- send
 
 	return nil, nil
+}
+
+func makeKey() string {
+	return fmt.Sprintf("%v:%v", *port, uid)
+}
+
+func translateKey(s string) (int, int64) {
+	var p int
+	var u int64
+
+	fmt.Sscanf(s, "%d:%d", &p, &u)
+
+	return p, u
 }
