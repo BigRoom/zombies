@@ -54,6 +54,8 @@ func (z *Zombie) SetNick(name string) {
 
 // Join makes the zombie join a bunch of channels. Channels are parsed in the form: x.x.x.x:6667/#channel
 func (z *Zombie) Join(channels ...string) {
+	// uggerrsss
+L:
 	for i := range channels {
 		channel, err := ParseChannelKey(channels[i])
 		if err != nil {
@@ -61,6 +63,12 @@ func (z *Zombie) Join(channels ...string) {
 		}
 
 		channels[i] = channel
+
+		for _, c := range z.Channels {
+			if c == channels[i] {
+				break L
+			}
+		}
 	}
 
 	fmt.Println("Translated channels:", channels)
