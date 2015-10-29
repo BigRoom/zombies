@@ -86,6 +86,9 @@ func bindHandlers(k *kite.Kite) {
 
 	k.HandleFunc("exists", existsZombie).
 		DisableAuthentication()
+
+	k.HandleFunc("channels", channelsZombie).
+		DisableAuthentication()
 }
 
 // addZombie adds a new zombie to the runnning pool. It takes a zombies.Add struct and returns the port
@@ -175,6 +178,19 @@ func sendZombie(r *kite.Request) (interface{}, error) {
 	z.Messages <- send
 
 	return nil, nil
+}
+
+func channelsZombie(r *kite.Request) (interface{}, error) {
+	id := int64(r.Args.One().MustFloat64())
+
+	z, err := pool.Revive(id)
+	if err != nil {
+		return z, err
+	}
+
+	return zombies.Channels{
+		Channels: z.Channels,
+	}, nil
 }
 
 // makeKey assembles a key used to save a zombie in etcd
