@@ -11,7 +11,6 @@ import (
 	"github.com/bigroom/zombies"
 	"github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context"
 	"github.com/coreos/etcd/client"
-	// cerror "github.com/coreos/etcd/error"
 	"github.com/koding/kite"
 	"github.com/paked/configure"
 )
@@ -36,10 +35,32 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 	uid = rand.Int63()
 
+	setupETCD()
+
+	pool = zombies.New()
+
+	k := kite.New("pool", "1.0.0")
+
+	k.Config.Port = *port
+	k.Config.IP = "0.0.0.0"
+
+	bindHandlers(k)
+
+	go k.Run()
+
+	<-k.ServerReadyNotify()
+
+	fmt.Println("Serving on port", k.Port, "provided", k.Config.Port)
+
+	<-k.ServerCloseNotify()
+}
+
+func setupETCD() {
 	var err error
 
 	ip := os.Getenv("STORE_PORT_4001_TCP_ADDR")
 	log.Println("Got ip", ip)
+
 	cfg := client.Config{
 		Endpoints: []string{"http://" + ip + ":4001"},
 		Transport: client.DefaultTransport,
@@ -51,14 +72,9 @@ func main() {
 	}
 
 	store = client.NewKeysAPI(eClient)
+}
 
-	pool = zombies.New()
-
-	k := kite.New("pool", "1.0.0")
-
-	k.Config.Port = *port
-	k.Config.IP = "0.0.0.0"
-
+func bindHandlers(k *kite.Kite) {
 	k.HandleFunc("add", addZombie).
 		DisableAuthentication()
 
@@ -70,14 +86,6 @@ func main() {
 
 	k.HandleFunc("exists", existsZombie).
 		DisableAuthentication()
-
-	go k.Run()
-
-	<-k.ServerReadyNotify()
-
-	fmt.Println("Serving on port", k.Port, "provided", k.Config.Port)
-
-	<-k.ServerCloseNotify()
 }
 
 // addZombie adds a new zombie to the runnning pool. It takes a zombies.Add struct and returns the port
