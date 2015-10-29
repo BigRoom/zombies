@@ -1,6 +1,7 @@
 package zombies
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/nickvanw/ircx"
@@ -13,6 +14,7 @@ type Zombie struct {
 	irc      *ircx.Bot
 	nick     string
 	server   string
+	Channels []string
 }
 
 // NewZombie either creates or retrieves a zombie. Zombies will be created if
@@ -50,11 +52,13 @@ func (z *Zombie) SetNick(name string) {
 	})
 }
 
-func (z *Zombie) Join(channel ...string) {
+func (z *Zombie) Join(channels ...string) {
 	z.irc.Sender.Send(&irc.Message{
 		Command: irc.JOIN,
-		Params:  channel,
+		Params:  channels,
 	})
+
+	z.Channels = append(z.Channels, channels...)
 }
 
 func (z *Zombie) messageHandler(s ircx.Sender, m *irc.Message) {
@@ -64,9 +68,30 @@ func (z *Zombie) messageHandler(s ircx.Sender, m *irc.Message) {
 			msg := <-z.Messages
 
 			log.Printf("Got message '%v'. Sending to IRC on channel '%v'...", msg.Message, msg.Channel)
-			err := s.Send(&irc.Message{
+
+			//var host string
+			//var p int
+			var channel string
+
+			var (
+				h1 int
+				h2 int
+				h3 int
+				h4 int
+			)
+
+			_, err := fmt.Sscanf(msg.Channel, "%d.%d.%d.%d:6667/%v", &h1, &h2, &h3, &h4, &channel)
+			if err != nil {
+				log.Println("Couldnt separate channelid: ", err)
+				continue
+			}
+
+			log.Println(h1, h2, h3, h4)
+			log.Println(channel)
+
+			err = s.Send(&irc.Message{
 				Command:  irc.PRIVMSG,
-				Params:   []string{"#roomtest"},
+				Params:   []string{channel},
 				Trailing: msg.Message,
 			})
 
