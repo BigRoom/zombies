@@ -102,6 +102,8 @@ func addZombie(r *kite.Request) (interface{}, error) {
 	return *port, nil
 }
 
+// existsZombie consults etcd to check if a zombie exists. If a zombie existed in a previous version of the pool
+// it will overwritten
 func existsZombie(r *kite.Request) (interface{}, error) {
 	id := int64(r.Args.One().MustFloat64())
 	log.Printf("ID is here %v", id)
@@ -135,6 +137,7 @@ func existsZombie(r *kite.Request) (interface{}, error) {
 	return false, nil
 }
 
+// joinZombie will join a new irc channel
 func joinZombie(r *kite.Request) (interface{}, error) {
 	join := zombies.Join{}
 	r.Args.One().MustUnmarshal(&join)
@@ -149,6 +152,7 @@ func joinZombie(r *kite.Request) (interface{}, error) {
 	return 3001, nil
 }
 
+// sendZombie adds a message to a queue of messages
 func sendZombie(r *kite.Request) (interface{}, error) {
 	send := zombies.Send{}
 	r.Args.One().MustUnmarshal(&send)
@@ -165,10 +169,12 @@ func sendZombie(r *kite.Request) (interface{}, error) {
 	return nil, nil
 }
 
+// makeKey assembles a key used to save a zombie in etcd
 func makeKey() string {
 	return fmt.Sprintf("%v:%v", *port, uid)
 }
 
+// translateKey takes a key and converts it back into a port an uid
 func translateKey(s string) (int, int64) {
 	var p int
 	var u int64
