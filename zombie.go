@@ -2,7 +2,7 @@ package zombies
 
 import (
 	"fmt"
-	"log"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/nickvanw/ircx"
 	"github.com/sorcix/irc"
@@ -59,7 +59,10 @@ L:
 	for i := range channels {
 		channel, err := ParseChannelKey(channels[i])
 		if err != nil {
-			log.Println("Failed getting key:", err)
+			log.WithFields(log.Fields{
+				"channel": channel,
+				"error":   err,
+			}).Error("Failed getting key")
 		}
 
 		channels[i] = channel
@@ -71,7 +74,9 @@ L:
 		}
 	}
 
-	fmt.Println("Translated channels:", channels)
+	log.WithFields(log.Fields{
+		"channels": channels,
+	}).Info("Translated channels")
 
 	z.irc.Sender.Send(&irc.Message{
 		Command: irc.JOIN,
@@ -84,18 +89,25 @@ L:
 func (z *Zombie) messageHandler(s ircx.Sender, m *irc.Message) {
 	go func() {
 		for {
-			log.Println("Waiting for message")
+			log.Info("Waiting for message")
 			msg := <-z.Messages
 
-			log.Printf("Got message '%v'. Sending to IRC on channel '%v'...", msg.Message, msg.Channel)
+			log.WithFields(log.Fields{
+				"message":     msg.Message,
+				"channel_key": msg.Channel,
+			}).Info("Got message")
 
 			channel, err := ParseChannelKey(msg.Channel)
 			if err != nil {
-				log.Println("Couldnt get channel:", err)
+				log.WithFields(log.Fields{
+					"error": err,
+				}).Error("Couldnt get channel")
 				return
 			}
 
-			log.Printf("Got channel (%v)", channel)
+			log.WithFields(log.Fields{
+				"channel": channel,
+			}).Info("Got channel")
 
 			err = s.Send(&irc.Message{
 				Command:  irc.PRIVMSG,
@@ -104,16 +116,18 @@ func (z *Zombie) messageHandler(s ircx.Sender, m *irc.Message) {
 			})
 
 			if err != nil {
-				log.Println("Couldn't send message:", err)
+				log.WithFields(log.Fields{
+					"error": err,
+				}).Warn("Couldn't send message")
 			}
 
-			log.Println("Message sent")
+			log.Info("Message sent")
 		}
 	}()
 }
 
 func (z *Zombie) registerHandler(s ircx.Sender, m *irc.Message) {
-	log.Println("Registering")
+	log.Info("Registered")
 }
 
 func (z *Zombie) pingHandler(s ircx.Sender, m *irc.Message) {
@@ -136,11 +150,8 @@ func ParseChannelKey(s string) (string, error) {
 
 	_, err := fmt.Sscanf(s, "%d.%d.%d.%d:6667/%v", &h1, &h2, &h3, &h4, &channel)
 	if err != nil {
-		log.Println("failing!")
 		return channel, err
 	}
-
-	log.Println("Parsing keys")
 
 	return channel, nil
 }
