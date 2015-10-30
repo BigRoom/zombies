@@ -15,6 +15,7 @@ RUN go get github.com/paked/configure
 
 RUN go get github.com/bigroom/zombies/cmd/pool
 RUN go get github.com/getsentry/raven-go
+RUN go get github.com/sirupsen/logrus
 
 WORKDIR /go/src/github.com/bigroom/zombies/cmd/pool
 

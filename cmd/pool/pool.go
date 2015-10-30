@@ -3,7 +3,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
 	"os"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/getsentry/raven-go"
 	"github.com/koding/kite"
 	"github.com/paked/configure"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -39,7 +39,10 @@ func main() {
 
 	sentry, err = raven.NewClient(*sentryDSN, nil)
 	if err != nil {
-		log.Println("Could not connect to sentry:", err)
+		log.WithFields(log.Fields{
+			"dsn":   *sentryDSN,
+			"error": err,
+		}).Warn("Could not connect to sentry")
 	}
 
 	rand.Seed(time.Now().UnixNano())
@@ -60,7 +63,10 @@ func main() {
 
 	<-k.ServerReadyNotify()
 
-	fmt.Println("Serving on port", k.Port, "provided", k.Config.Port)
+	log.WithFields(log.Fields{
+		"port": k.Port,
+		"ip":   k.Config.IP,
+	}).Info("Pool is ready")
 
 	<-k.ServerCloseNotify()
 }
@@ -69,7 +75,9 @@ func setupETCD() {
 	var err error
 
 	ip := os.Getenv("STORE_PORT_4001_TCP_ADDR")
-	log.Println("Got ip", ip)
+	log.WithFields(log.Fields{
+		"ip": ip,
+	}).Info("Retrieved IP")
 
 	cfg := client.Config{
 		Endpoints: []string{"http://" + ip + ":4001"},
@@ -78,8 +86,10 @@ func setupETCD() {
 
 	eClient, err = client.New(cfg)
 	if err != nil {
-		log.Println(err)
 		sentry.CaptureErrorAndWait(err, nil)
+		log.WithFields(log.Fields{
+			"error": err,
+		}).Fatal("Could not create etcd client")
 		return
 	}
 
@@ -123,14 +133,21 @@ func addZombie(r *kite.Request) (interface{}, error) {
 		return z, err
 	}
 
+	log.WithFields(log.Fields{
+		"id":   add.ID,
+		"nick": add.Nick,
+	}).Info("Spawned zombie")
+
 	// tell etcd that the zombie is in this pool
-	resp, err := store.Set(context.Background(), fmt.Sprintf("/zombies/%v", add.ID), makeKey(), nil)
+	_, err = store.Set(context.Background(), fmt.Sprintf("/zombies/%v", add.ID), makeKey(), nil)
 	if err != nil {
 		sentry.CaptureErrorAndWait(err, nil)
 		return z, err
 	}
 
-	log.Printf("Setting is done. Here is the metadata %v", resp)
+	log.WithFields(log.Fields{
+		"id": add.ID,
+	}).Info("Wrote bot location into etcd")
 
 	return *port, nil
 }
@@ -146,14 +163,15 @@ func existsZombie(r *kite.Request) (interface{}, error) {
 	key := fmt.Sprintf("/zombies/%v", id)
 	resp, err := store.Get(context.Background(), key, nil)
 	if err != nil {
-		log.Println("error: ", err)
 		sentry.CaptureErrorAndWait(err, nil)
 
-		return false, nil //zombies.ErrZombieDoesntExist
+		return false, nil
 	}
 
 	if makeKey() == resp.Node.Value {
-		log.Println("Zombie does exist!")
+		log.WithFields(log.Fields{
+			"id": id,
+		}).Info("Exists")
 		return true, nil
 	} else if p, u := translateKey(resp.Node.Value); p == *port && u != uid {
 		_, err := store.Delete(context.Background(), key, nil)
@@ -162,10 +180,14 @@ func existsZombie(r *kite.Request) (interface{}, error) {
 			return false, err
 		}
 
-		fmt.Println("Deleted old key")
+		log.WithFields(log.Fields{
+			"key": key,
+		}).Warn("Deleting old key")
 	}
 
-	log.Println("Zombie does not exist...")
+	log.WithFields(log.Fields{
+		"id": id,
+	}).Info("Zombie does not exist")
 
 	return false, nil
 }
@@ -186,6 +208,11 @@ func joinZombie(r *kite.Request) (interface{}, error) {
 
 	z.Join(join.Channel)
 
+	log.WithFields(log.Fields{
+		"channel": join.Channel,
+		"id":      join.ID,
+	}).Info("Joining channel")
+
 	return 3001, nil
 }
 
@@ -205,6 +232,11 @@ func sendZombie(r *kite.Request) (interface{}, error) {
 
 	z.Messages <- send
 
+	log.WithFields(log.Fields{
+		"message": send.Message,
+		"id":      send.ID,
+	}).Info("Sending message")
+
 	return nil, nil
 }
 
@@ -219,6 +251,10 @@ func channelsZombie(r *kite.Request) (interface{}, error) {
 		sentry.CaptureErrorAndWait(err, nil)
 		return z, err
 	}
+
+	log.WithFields(log.Fields{
+		"id": id,
+	}).Info("Sent channels")
 
 	return zombies.Channels{
 		Channels: z.Channels,
