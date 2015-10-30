@@ -55,7 +55,8 @@ func (z *Zombie) SetNick(name string) {
 // Join makes the zombie join a bunch of channels. Channels are parsed in the form: x.x.x.x:6667/#channel
 func (z *Zombie) Join(channels ...string) {
 	// uggerrsss
-L:
+	n := []string{}
+
 	for i := range channels {
 		channel, err := ParseChannelKey(channels[i])
 		if err != nil {
@@ -65,25 +66,29 @@ L:
 			}).Error("Failed getting key")
 		}
 
-		channels[i] = channel
-
+		add := true
 		for _, c := range z.Channels {
-			if c == channels[i] {
-				break L
+			if c == channel {
+				add = false
+				break
 			}
+		}
+
+		if add {
+			n = append(n, channel)
 		}
 	}
 
 	log.WithFields(log.Fields{
-		"channels": channels,
-	}).Info("Translated channels")
+		"channels": n,
+	}).Info("Added channels")
 
 	z.irc.Sender.Send(&irc.Message{
 		Command: irc.JOIN,
 		Params:  channels,
 	})
 
-	z.Channels = append(z.Channels, channels...)
+	z.Channels = append(z.Channels, n...)
 }
 
 func (z *Zombie) messageHandler(s ircx.Sender, m *irc.Message) {
