@@ -13,7 +13,7 @@ RUN go get github.com/bigroom/zombies
 
 RUN go get github.com/paked/configure
 
-ADD . /go/src/github.com/bigroom/zombies/cmd/pool
+RUN go get github.com/bigroom/zombies/cmd/pool
 
 WORKDIR /go/src/github.com/bigroom/zombies/cmd/pool
 
