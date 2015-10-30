@@ -11,6 +11,7 @@ import (
 	"github.com/bigroom/zombies"
 	"github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context"
 	"github.com/coreos/etcd/client"
+	"github.com/getsentry/raven-go"
 	"github.com/koding/kite"
 	"github.com/paked/configure"
 )
@@ -19,18 +20,27 @@ var (
 	pool    *zombies.Zombies
 	eClient client.Client
 	store   client.KeysAPI
+	sentry  *raven.Client
 
 	uid int64
 
-	conf = configure.New()
-	port = conf.Int("port", 3001, "THe port you want to listen on")
+	conf      = configure.New()
+	port      = conf.Int("port", 3001, "THe port you want to listen on")
+	sentryDSN = conf.String("sentry-dsn", "", "The sentry DSN you want to lose")
 )
 
 func main() {
+	var err error
+
 	conf.Use(configure.NewEnvironment())
 	conf.Use(configure.NewFlag())
 
 	conf.Parse()
+
+	sentry, err = raven.NewClient(*sentryDSN, nil)
+	if err != nil {
+		log.Println("Could not connect to sentry:", err)
+	}
 
 	rand.Seed(time.Now().UnixNano())
 	uid = rand.Int63()
@@ -68,7 +78,9 @@ func setupETCD() {
 
 	eClient, err = client.New(cfg)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		sentry.CaptureErrorAndWait(err, nil)
+		return
 	}
 
 	store = client.NewKeysAPI(eClient)
@@ -98,18 +110,23 @@ func bindHandlers(k *kite.Kite) {
 
 // addZombie adds a new zombie to the runnning pool. It takes a zombies.Add struct and returns the port
 func addZombie(r *kite.Request) (interface{}, error) {
+	defer sentry.ClearContext()
+	sentry.SetTagsContext(map[string]string{"type": "add"})
+
 	// Write to etcd
 	add := zombies.Add{}
 	r.Args.One().MustUnmarshal(&add)
 
 	z, err := pool.New(add.ID, add.Server, add.Nick)
 	if err != nil {
+		sentry.CaptureErrorAndWait(err, nil)
 		return z, err
 	}
 
 	// tell etcd that the zombie is in this pool
 	resp, err := store.Set(context.Background(), fmt.Sprintf("/zombies/%v", add.ID), makeKey(), nil)
 	if err != nil {
+		sentry.CaptureErrorAndWait(err, nil)
 		return z, err
 	}
 
@@ -121,20 +138,19 @@ func addZombie(r *kite.Request) (interface{}, error) {
 // existsZombie consults etcd to check if a zombie exists. If a zombie existed in a previous version of the pool
 // it will overwritten
 func existsZombie(r *kite.Request) (interface{}, error) {
+	defer sentry.ClearContext()
+	sentry.SetTagsContext(map[string]string{"type": "exists"})
+
 	id := int64(r.Args.One().MustFloat64())
-	log.Printf("ID is here %v", id)
 
 	key := fmt.Sprintf("/zombies/%v", id)
 	resp, err := store.Get(context.Background(), key, nil)
 	if err != nil {
 		log.Println("error: ", err)
+		sentry.CaptureErrorAndWait(err, nil)
 
 		return false, nil //zombies.ErrZombieDoesntExist
 	}
-
-	log.Println("Got node value")
-
-	log.Printf("'%v' vs '%v'", id, resp.Node.Value)
 
 	if makeKey() == resp.Node.Value {
 		log.Println("Zombie does exist!")
@@ -142,6 +158,7 @@ func existsZombie(r *kite.Request) (interface{}, error) {
 	} else if p, u := translateKey(resp.Node.Value); p == *port && u != uid {
 		_, err := store.Delete(context.Background(), key, nil)
 		if err != nil {
+			sentry.CaptureErrorAndWait(err, nil)
 			return false, err
 		}
 
@@ -155,11 +172,15 @@ func existsZombie(r *kite.Request) (interface{}, error) {
 
 // joinZombie will join a new irc channel
 func joinZombie(r *kite.Request) (interface{}, error) {
+	defer sentry.ClearContext()
+	sentry.SetTagsContext(map[string]string{"type": "join"})
+
 	join := zombies.Join{}
 	r.Args.One().MustUnmarshal(&join)
 
 	z, err := pool.Revive(join.ID)
 	if err != nil {
+		sentry.CaptureErrorAndWait(err, nil)
 		return z, err
 	}
 
@@ -170,15 +191,17 @@ func joinZombie(r *kite.Request) (interface{}, error) {
 
 // sendZombie adds a message to a queue of messages
 func sendZombie(r *kite.Request) (interface{}, error) {
+	defer sentry.ClearContext()
+	sentry.SetTagsContext(map[string]string{"type": "send"})
+
 	send := zombies.Send{}
 	r.Args.One().MustUnmarshal(&send)
 
 	z, err := pool.Revive(send.ID)
 	if err != nil {
+		sentry.CaptureErrorAndWait(err, nil)
 		return z, err
 	}
-
-	log.Println(z)
 
 	z.Messages <- send
 
@@ -186,10 +209,14 @@ func sendZombie(r *kite.Request) (interface{}, error) {
 }
 
 func channelsZombie(r *kite.Request) (interface{}, error) {
+	defer sentry.ClearContext()
+	sentry.SetTagsContext(map[string]string{"type": "channels"})
+
 	id := int64(r.Args.One().MustFloat64())
 
 	z, err := pool.Revive(id)
 	if err != nil {
+		sentry.CaptureErrorAndWait(err, nil)
 		return z, err
 	}
 
