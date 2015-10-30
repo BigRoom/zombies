@@ -72,6 +72,11 @@ func setupETCD() {
 	}
 
 	store = client.NewKeysAPI(eClient)
+
+	// Yes. This is real.
+	store.Set(context.Background(), "/zombies", "", &client.SetOptions{
+		Dir: true,
+	})
 }
 
 func bindHandlers(k *kite.Kite) {
@@ -122,7 +127,7 @@ func existsZombie(r *kite.Request) (interface{}, error) {
 	key := fmt.Sprintf("/zombies/%v", id)
 	resp, err := store.Get(context.Background(), key, nil)
 	if err != nil {
-		log.Fatal("error: ", err)
+		log.Println("error: ", err)
 
 		return false, nil //zombies.ErrZombieDoesntExist
 	}
