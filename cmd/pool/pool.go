@@ -86,7 +86,7 @@ func setupETCD() {
 
 	eClient, err = client.New(cfg)
 	if err != nil {
-		sentry.CaptureErrorAndWait(err, nil)
+		sentry.CaptureError(err, nil)
 		log.WithFields(log.Fields{
 			"error": err,
 		}).Fatal("Could not create etcd client")
@@ -129,7 +129,7 @@ func addZombie(r *kite.Request) (interface{}, error) {
 
 	z, err := pool.New(add.ID, add.Server, add.Nick)
 	if err != nil {
-		sentry.CaptureErrorAndWait(err, nil)
+		sentry.CaptureError(err, nil)
 		return z, err
 	}
 
@@ -141,7 +141,7 @@ func addZombie(r *kite.Request) (interface{}, error) {
 	// tell etcd that the zombie is in this pool
 	_, err = store.Set(context.Background(), fmt.Sprintf("/zombies/%v", add.ID), makeKey(), nil)
 	if err != nil {
-		sentry.CaptureErrorAndWait(err, nil)
+		sentry.CaptureError(err, nil)
 		return z, err
 	}
 
@@ -163,7 +163,7 @@ func existsZombie(r *kite.Request) (interface{}, error) {
 	key := fmt.Sprintf("/zombies/%v", id)
 	resp, err := store.Get(context.Background(), key, nil)
 	if err != nil {
-		sentry.CaptureErrorAndWait(err, nil)
+		sentry.CaptureError(err, nil)
 
 		return false, nil
 	}
@@ -176,7 +176,7 @@ func existsZombie(r *kite.Request) (interface{}, error) {
 	} else if p, u := translateKey(resp.Node.Value); p == *port && u != uid {
 		_, err := store.Delete(context.Background(), key, nil)
 		if err != nil {
-			sentry.CaptureErrorAndWait(err, nil)
+			sentry.CaptureError(err, nil)
 			return false, err
 		}
 
@@ -202,7 +202,7 @@ func joinZombie(r *kite.Request) (interface{}, error) {
 
 	z, err := pool.Revive(join.ID)
 	if err != nil {
-		sentry.CaptureErrorAndWait(err, nil)
+		sentry.CaptureError(err, nil)
 		return z, err
 	}
 
@@ -226,7 +226,7 @@ func sendZombie(r *kite.Request) (interface{}, error) {
 
 	z, err := pool.Revive(send.ID)
 	if err != nil {
-		sentry.CaptureErrorAndWait(err, nil)
+		sentry.CaptureError(err, nil)
 		return z, err
 	}
 
@@ -249,7 +249,7 @@ func channelsZombie(r *kite.Request) (interface{}, error) {
 
 	z, err := pool.Revive(id)
 	if err != nil {
-		sentry.CaptureErrorAndWait(err, nil)
+		sentry.CaptureError(err, nil)
 		return z, err
 	}
 
