@@ -209,8 +209,8 @@ func joinZombie(r *kite.Request) (interface{}, error) {
 	z.Join(join.Channel)
 
 	log.WithFields(log.Fields{
-		"channel": join.Channel,
-		"id":      join.ID,
+		"channel_key": join.Channel,
+		"id":          join.ID,
 	}).Info("Joining channel")
 
 	return 3001, nil
@@ -233,8 +233,9 @@ func sendZombie(r *kite.Request) (interface{}, error) {
 	z.Messages <- send
 
 	log.WithFields(log.Fields{
-		"message": send.Message,
-		"id":      send.ID,
+		"message":     send.Message,
+		"id":          send.ID,
+		"channel_key": send.Channel,
 	}).Info("Sending message")
 
 	return nil, nil

@@ -61,14 +61,17 @@ func (z *Zombie) Join(channels ...string) {
 		channel, err := ParseChannelKey(channels[i])
 		if err != nil {
 			log.WithFields(log.Fields{
-				"channel": channel,
-				"error":   err,
-			}).Error("Failed getting key")
+				"channel_key": channel,
+				"error":       err,
+			}).Error("Failed getting key of channel")
 		}
 
 		add := true
 		for _, c := range z.Channels {
 			if c == channel {
+				log.WithFields(log.Fields{
+					"channel": channel,
+				}).Warn("User is already in that channel")
 				add = false
 				break
 			}
@@ -83,10 +86,19 @@ func (z *Zombie) Join(channels ...string) {
 		"channels": n,
 	}).Info("Added channels")
 
-	z.irc.Sender.Send(&irc.Message{
+	err := z.irc.Sender.Send(&irc.Message{
 		Command: irc.JOIN,
-		Params:  channels,
+		Params:  n,
 	})
+
+	if err != nil {
+		log.WithFields(log.Fields{
+			"error":    err,
+			"channels": n,
+		}).Warn("Could not join channels")
+
+		return
+	}
 
 	z.Channels = append(z.Channels, n...)
 }
@@ -100,19 +112,20 @@ func (z *Zombie) messageHandler(s ircx.Sender, m *irc.Message) {
 			log.WithFields(log.Fields{
 				"message":     msg.Message,
 				"channel_key": msg.Channel,
-			}).Info("Got message")
+			}).Info("Received message going to send to IRC")
 
 			channel, err := ParseChannelKey(msg.Channel)
 			if err != nil {
 				log.WithFields(log.Fields{
-					"error": err,
+					"error":       err,
+					"channel_key": msg.Channel,
 				}).Error("Couldnt get channel")
 				return
 			}
 
 			log.WithFields(log.Fields{
 				"channel": channel,
-			}).Info("Got channel")
+			}).Info("Succesfully parsed channels")
 
 			err = s.Send(&irc.Message{
 				Command:  irc.PRIVMSG,
