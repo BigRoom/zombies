@@ -43,6 +43,7 @@ func NewZombie(server, nick string) (*Zombie, error) {
 	return user, nil
 }
 
+// SetNick will change the username of an IRC zombie
 func (z *Zombie) SetNick(name string) {
 	z.nick = name
 
@@ -156,6 +157,8 @@ func (z *Zombie) pingHandler(s ircx.Sender, m *irc.Message) {
 	})
 }
 
+// ParseChannelKey transforms a channel key in form x.x.x.x:6667/#channel into a channel and error
+// TODO Fix when not parsing channel keys with the host is not an IP
 func ParseChannelKey(s string) (string, error) {
 	var channel string
 

@@ -3,14 +3,16 @@ package zombies
 import "errors"
 
 var (
+	// ErrZombieDoesntExist is an error which says a Zombie does not exist
 	ErrZombieDoesntExist = errors.New("Zombie does not exist")
 )
 
-// A pool of zombies
+// Zombies represent a pool of zombies
 type Zombies struct {
 	pool map[int64]*Zombie
 }
 
+// New creates a new pool of Zombies
 func New() *Zombies {
 	return &Zombies{
 		pool: make(map[int64]*Zombie),
