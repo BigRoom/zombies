@@ -43,6 +43,15 @@ func NewZombie(server, nick string) (*Zombie, error) {
 	return user, nil
 }
 
+func (z *Zombie) Invite(nick, channel string) {
+	m := &irc.Message{
+		Command: irc.INVITE,
+		Params:  []string{nick, channel},
+	}
+
+	z.irc.Sender.Send(m)
+}
+
 // SetNick will change the username of an IRC zombie
 func (z *Zombie) SetNick(name string) {
 	z.nick = name

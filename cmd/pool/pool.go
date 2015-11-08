@@ -24,9 +24,10 @@ var (
 
 	uid int64
 
-	conf      = configure.New()
-	port      = conf.Int("port", 3001, "THe port you want to listen on")
-	sentryDSN = conf.String("sentry-dsn", "", "The sentry DSN you want to lose")
+	conf       = configure.New()
+	port       = conf.Int("port", 3001, "THe port you want to listen on")
+	sentryDSN  = conf.String("sentry-dsn", "", "The sentry DSN you want to lose")
+	roomerNick = conf.String("roomer-nick", "roomer", "The nik roomer is assigned too")
 )
 
 func main() {
@@ -207,6 +208,14 @@ func joinZombie(r *kite.Request) (interface{}, error) {
 	}
 
 	z.Join(join.Channel)
+
+	c, err := zombies.ParseChannelKey(join.Channel)
+	if err != nil {
+		sentry.CaptureError(err, nil)
+		return z, err
+	}
+
+	z.Invite(*roomerNick, c)
 
 	log.WithFields(log.Fields{
 		"channel_key": join.Channel,
